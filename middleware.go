@@ -78,7 +78,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 		start := time.Now()
 
 		reqSz := make(chan float64)
-		go computeRequestSize(c.Request, reqSz)
+		go computeApproximateRequestSize(c.Request, reqSz)
 
 		c.Next()
 
@@ -100,10 +100,29 @@ func prometheusHandler() gin.HandlerFunc {
 	}
 }
 
-func computeRequestSize(r *http.Request, out chan float64) {
-	c := &counter{}
-	r.Write(c)
-	out <- float64(c.size)
+// From https://github.com/DanielHeckrath/gin-prometheus/blob/master/gin_prometheus.go
+func computeApproximateRequestSize(r *http.Request, out chan int) {
+	s := 0
+	if r.URL != nil {
+		s = len(r.URL.String())
+	}
+
+	s += len(r.Method)
+	s += len(r.Proto)
+	for name, values := range r.Header {
+		s += len(name)
+		for _, value := range values {
+			s += len(value)
+		}
+	}
+	s += len(r.Host)
+
+	// N.B. r.Form and r.MultipartForm are assumed to be included in r.URL.
+
+	if r.ContentLength != -1 {
+		s += int(r.ContentLength)
+	}
+	out <- s
 }
 
 type counter struct {
