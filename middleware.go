@@ -77,7 +77,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 
 		start := time.Now()
 
-		reqSz := make(chan float64)
+		reqSz := make(chan int)
 		go computeApproximateRequestSize(c.Request, reqSz)
 
 		c.Next()
@@ -88,7 +88,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 
 		p.reqDur.Observe(elapsed)
 		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName()).Inc()
-		p.reqSz.Observe(<-reqSz)
+		p.reqSz.Observe(float64(<-reqSz))
 		p.resSz.Observe(resSz)
 	}
 }
@@ -123,15 +123,4 @@ func computeApproximateRequestSize(r *http.Request, out chan int) {
 		s += int(r.ContentLength)
 	}
 	out <- s
-}
-
-type counter struct {
-	size int
-}
-
-func (c *counter) Write(p []byte) (n int, err error) {
-	l := len(p)
-	c.size += l
-
-	return l, nil
 }
