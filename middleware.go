@@ -11,6 +11,7 @@ import (
 
 var defaultMetricPath = "/metrics"
 
+// Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
 	reqDur, reqSz, resSz prometheus.Summary
@@ -18,6 +19,7 @@ type Prometheus struct {
 	MetricsPath string
 }
 
+// NewPrometheus generates a new set of metrics with a certain subsystem name
 func NewPrometheus(subsystem string) *Prometheus {
 	p := &Prometheus{
 		MetricsPath: defaultMetricPath,
@@ -41,8 +43,8 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	p.reqDur = prometheus.MustRegisterOrGet(prometheus.NewSummary(
 		prometheus.SummaryOpts{
 			Subsystem: subsystem,
-			Name:      "request_duration_microseconds",
-			Help:      "The HTTP request latencies in microseconds.",
+			Name:      "request_duration_seconds",
+			Help:      "The HTTP request latencies in seconds.",
 		},
 	)).(prometheus.Summary)
 
@@ -63,6 +65,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	)).(prometheus.Summary)
 }
 
+// Use adds the middleware to a gin engine.
 func (p *Prometheus) Use(e *gin.Engine) {
 	e.Use(p.handlerFunc())
 	e.GET(p.MetricsPath, prometheusHandler())
@@ -77,18 +80,18 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 
 		start := time.Now()
 
-		reqSz := make(chan float64)
-		go computeRequestSize(c.Request, reqSz)
+		reqSz := make(chan int)
+		go computeApproximateRequestSize(c.Request, reqSz)
 
 		c.Next()
 
 		status := strconv.Itoa(c.Writer.Status())
-		elapsed := float64(time.Since(start)) / float64(time.Microsecond)
+		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Writer.Size())
 
 		p.reqDur.Observe(elapsed)
 		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName()).Inc()
-		p.reqSz.Observe(<-reqSz)
+		p.reqSz.Observe(float64(<-reqSz))
 		p.resSz.Observe(resSz)
 	}
 }
@@ -100,19 +103,27 @@ func prometheusHandler() gin.HandlerFunc {
 	}
 }
 
-func computeRequestSize(r *http.Request, out chan float64) {
-	c := &counter{}
-	r.Write(c)
-	out <- float64(c.size)
-}
+// From https://github.com/DanielHeckrath/gin-prometheus/blob/master/gin_prometheus.go
+func computeApproximateRequestSize(r *http.Request, out chan int) {
+	s := 0
+	if r.URL != nil {
+		s = len(r.URL.String())
+	}
 
-type counter struct {
-	size int
-}
+	s += len(r.Method)
+	s += len(r.Proto)
+	for name, values := range r.Header {
+		s += len(name)
+		for _, value := range values {
+			s += len(value)
+		}
+	}
+	s += len(r.Host)
 
-func (c *counter) Write(p []byte) (n int, err error) {
-	l := len(p)
-	c.size += l
+	// N.B. r.Form and r.MultipartForm are assumed to be included in r.URL.
 
-	return l, nil
+	if r.ContentLength != -1 {
+		s += int(r.ContentLength)
+	}
+	out <- s
 }
