@@ -11,6 +11,7 @@ import (
 
 var defaultMetricPath = "/metrics"
 
+// Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
 	reqDur, reqSz, resSz prometheus.Summary
@@ -18,6 +19,7 @@ type Prometheus struct {
 	MetricsPath string
 }
 
+// NewPrometheus generates a new set of metrics with a certain subsystem name
 func NewPrometheus(subsystem string) *Prometheus {
 	p := &Prometheus{
 		MetricsPath: defaultMetricPath,
@@ -41,8 +43,8 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	p.reqDur = prometheus.MustRegisterOrGet(prometheus.NewSummary(
 		prometheus.SummaryOpts{
 			Subsystem: subsystem,
-			Name:      "request_duration_microseconds",
-			Help:      "The HTTP request latencies in microseconds.",
+			Name:      "request_duration_seconds",
+			Help:      "The HTTP request latencies in seconds.",
 		},
 	)).(prometheus.Summary)
 
@@ -63,6 +65,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	)).(prometheus.Summary)
 }
 
+// Use adds the middleware to a gin engine.
 func (p *Prometheus) Use(e *gin.Engine) {
 	e.Use(p.handlerFunc())
 	e.GET(p.MetricsPath, prometheusHandler())
@@ -83,7 +86,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 		c.Next()
 
 		status := strconv.Itoa(c.Writer.Status())
-		elapsed := float64(time.Since(start)) / float64(time.Microsecond)
+		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Writer.Size())
 
 		p.reqDur.Observe(elapsed)
