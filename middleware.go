@@ -77,6 +77,12 @@ func (p *Prometheus) Use(e *gin.Engine) {
 	e.GET(p.MetricsPath, prometheusHandler())
 }
 
+// UseWithAuth adds the middleware to a gin engine with BasicAuth.
+func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
+	e.Use(p.handlerFunc())
+	e.GET(p.MetricsPath, gin.BasicAuth(accounts), prometheusHandler())
+}
+
 func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.URL.String() == p.MetricsPath {
