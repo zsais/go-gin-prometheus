@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var defaultMetricPath = "/metrics"
@@ -109,7 +110,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 }
 
 func prometheusHandler() gin.HandlerFunc {
-	h := prometheus.UninstrumentedHandler()
+	h := promhttp.Handler()
 	return func(c *gin.Context) {
 		h.ServeHTTP(c.Writer, c.Request)
 	}
