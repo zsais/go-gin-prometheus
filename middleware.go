@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 )
 
 var defaultMetricPath = "/metrics"
@@ -41,7 +42,12 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 		},
 		[]string{"code", "method", "handler"},
 	)
-	prometheus.MustRegister(p.reqCnt)
+
+	if err := prometheus.Register(p.reqCnt); err != nil {
+		log.Info("reqCnt could not be registered: ", err)
+	} else {
+		log.Info("reqCnt registered.")
+	}
 
 	p.reqDur = prometheus.NewSummary(
 		prometheus.SummaryOpts{
@@ -50,7 +56,12 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 			Help:      "The HTTP request latencies in seconds.",
 		},
 	)
-	prometheus.MustRegister(p.reqDur)
+
+	if err := prometheus.Register(p.reqDur); err != nil {
+		log.Info("reqDur could not be registered: ", err)
+	} else {
+		log.Info("reqDur registered.")
+	}
 
 	p.reqSz = prometheus.NewSummary(
 		prometheus.SummaryOpts{
@@ -59,7 +70,12 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 			Help:      "The HTTP request sizes in bytes.",
 		},
 	)
-	prometheus.MustRegister(p.reqSz)
+
+	if err := prometheus.Register(p.reqSz); err != nil {
+		log.Info("reqSz could not be registered: ", err)
+	} else {
+		log.Info("reqSz registered.")
+	}
 
 	p.resSz = prometheus.NewSummary(
 		prometheus.SummaryOpts{
@@ -68,7 +84,12 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 			Help:      "The HTTP response sizes in bytes.",
 		},
 	)
-	prometheus.MustRegister(p.resSz)
+
+	if err := prometheus.Register(p.resSz); err != nil {
+		log.Info("resSz could not be registered: ", err)
+	} else {
+		log.Info("resSz registered.")
+	}
 
 }
 
