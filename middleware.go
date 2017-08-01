@@ -76,7 +76,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 			Name:      "requests_total",
 			Help:      "How many HTTP requests processed, partitioned by status code and HTTP method.",
 		},
-		[]string{"code", "method", "handler"},
+		[]string{"code", "method", "handler", "host"},
 	)
 
 	if err := prometheus.Register(p.reqCnt); err != nil {
@@ -160,7 +160,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 		resSz := float64(c.Writer.Size())
 
 		p.reqDur.Observe(elapsed)
-		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName()).Inc()
+		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName(), c.Request.Host).Inc()
 		p.reqSz.Observe(float64(<-reqSz))
 		p.resSz.Observe(resSz)
 	}
