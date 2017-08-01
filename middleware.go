@@ -121,7 +121,7 @@ func (p *Prometheus) getPushGatewayUrl() string {
 	if p.Ppg.Job == "" {
 		p.Ppg.Job = "gin"
 	}
-	return p.Ppg.PushGatewayURL + "/metrics/job/" + p.Ppg.Job + "/instances/" + h
+	return p.Ppg.PushGatewayURL + "/metrics/job/" + p.Ppg.Job + "/instance/" + h
 }
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
