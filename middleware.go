@@ -123,7 +123,7 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 		resSz := float64(c.Writer.Size())
 
 		p.reqDur.Observe(elapsed)
-		p.reqCnt.WithLabelValues(status, c.Request.Method, c.Request.URL.Path).Inc()
+		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName()).Inc()
 		p.reqSz.Observe(float64(<-reqSz))
 		p.resSz.Observe(resSz)
 	}
