@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var defaultMetricPath = "/metrics"
@@ -66,7 +66,7 @@ func (p *Prometheus) SetPushGateway(pushGatewayURL, metricsURL string, pushInter
 	p.startPushTicker()
 }
 
-// Set pushgateway job name, defaults to "gin"
+// SetPushGatewayJob job name, defaults to "gin"
 func (p *Prometheus) SetPushGatewayJob(j string) {
 	p.Ppg.Job = j
 }
@@ -116,7 +116,7 @@ func (p *Prometheus) getMetrics() []byte {
 	return body
 }
 
-func (p *Prometheus) getPushGatewayUrl() string {
+func (p *Prometheus) getPushGatewayURL() string {
 	h, _ := os.Hostname()
 	if p.Ppg.Job == "" {
 		p.Ppg.Job = "gin"
@@ -125,7 +125,7 @@ func (p *Prometheus) getPushGatewayUrl() string {
 }
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
-	req, err := http.NewRequest("POST", p.getPushGatewayUrl(), bytes.NewBuffer(metrics))
+	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
 	client := &http.Client{}
 	_, err = client.Do(req)
 	if err != nil {
