@@ -59,7 +59,7 @@ func NewPrometheus(subsystem string) *Prometheus {
 
 // SetPushGateway sends metrics to a remote pushgateway exposed on pushGatewayURL
 // every pushIntervalSeconds. Metrics are fetched from metricsURL
-func (p *Prometheus) SetPushGateway(pushGatewayURL, metricsURL string, pushIntervalSeconds time.Duration) {
+func (p *Prometheus) SetPushGateway(pushGatewayURL string, metricsURL string, pushIntervalSeconds time.Duration) {
 	p.Ppg.PushGatewayURL = pushGatewayURL
 	p.Ppg.MetricsURL = metricsURL
 	p.Ppg.PushIntervalSeconds = pushIntervalSeconds
@@ -81,7 +81,6 @@ func (p *Prometheus) SetListenAddress(address string) {
 }
 
 func (p *Prometheus) setMetricsPath(e *gin.Engine) {
-
 	if p.listenAddress != "" {
 		p.router.GET(p.MetricsPath, prometheusHandler())
 		p.runServer()
@@ -91,14 +90,12 @@ func (p *Prometheus) setMetricsPath(e *gin.Engine) {
 }
 
 func (p *Prometheus) setMetricsPathWithAuth(e *gin.Engine, accounts gin.Accounts) {
-
 	if p.listenAddress != "" {
 		p.router.GET(p.MetricsPath, gin.BasicAuth(accounts), prometheusHandler())
 		p.runServer()
 	} else {
 		e.GET(p.MetricsPath, gin.BasicAuth(accounts), prometheusHandler())
 	}
-
 }
 
 func (p *Prometheus) runServer() {
@@ -108,7 +105,11 @@ func (p *Prometheus) runServer() {
 }
 
 func (p *Prometheus) getMetrics() []byte {
-	response, _ := http.Get(p.Ppg.MetricsURL)
+	response, err := http.Get(p.Ppg.MetricsURL)
+	if err != nil {
+		log.Errorf("Unable to retrieve metrics: %v\n", err)
+		return []byte{}
+	}
 
 	defer response.Body.Close()
 	body, _ := ioutil.ReadAll(response.Body)
@@ -143,7 +144,6 @@ func (p *Prometheus) startPushTicker() {
 }
 
 func (p *Prometheus) registerMetrics(subsystem string) {
-
 	p.reqCnt = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: subsystem,
@@ -200,7 +200,6 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	} else {
 		log.Info("resSz registered.")
 	}
-
 }
 
 // Use adds the middleware to a gin engine.
