@@ -16,6 +16,27 @@ import (
 
 var defaultMetricPath = "/metrics"
 
+/*
+RequestCounterURLLabelMappingFn is a function which can be supplied to the middleware to control
+the cardinality of the request counter's "url" label, which might be required in some contexts.
+For instance, if for a "/customer/:name" route you don't want to generate a time series for every
+possible customer name, you could use this function:
+
+func(c *gin.Context) string {
+	url := c.Request.URL.String()
+	for _, p := range c.Params {
+		if p.Key == "name" {
+			url = strings.Replace(url, p.Value, ":name", 1)
+			break
+		}
+	}
+	return url
+}
+
+which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
+*/
+type RequestCounterURLLabelMappingFn func(c *gin.Context) string
+
 // Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
@@ -26,6 +47,8 @@ type Prometheus struct {
 	Ppg PrometheusPushGateway
 
 	MetricsPath string
+
+	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
@@ -51,6 +74,9 @@ func NewPrometheus(subsystem string) *Prometheus {
 
 	p := &Prometheus{
 		MetricsPath: defaultMetricPath,
+		ReqCntURLLabelMappingFn: func(c *gin.Context) string {
+			return c.Request.URL.String() // i.e. by default do nothing, i.e. return URL as is
+		},
 	}
 	p.registerMetrics(subsystem)
 
@@ -232,7 +258,8 @@ func (p *Prometheus) handlerFunc() gin.HandlerFunc {
 		resSz := float64(c.Writer.Size())
 
 		p.reqDur.Observe(elapsed)
-		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName(), c.Request.Host, c.Request.URL.String()).Inc()
+		url := p.ReqCntURLLabelMappingFn(c)
+		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName(), c.Request.Host, url).Inc()
 		p.reqSz.Observe(float64(reqSz))
 		p.resSz.Observe(resSz)
 	}
