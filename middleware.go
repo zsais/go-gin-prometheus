@@ -16,6 +16,41 @@ import (
 
 var defaultMetricPath = "/metrics"
 
+// Standard default metrics
+//	counter, counter_vec, gauge, gauge_vec,
+//	histogram, histogram_vec, summary, summary_vec
+var reqCnt = &Metric{
+	ID:          "reqCnt",
+	Name:        "requests_total",
+	Description: "How many HTTP requests processed, partitioned by status code and HTTP method.",
+	Type:        "counter_vec",
+	Args:        []string{"code", "method", "handler", "host", "url"}}
+
+var reqDur = &Metric{
+	ID:          "reqDur",
+	Name:        "request_duration_seconds",
+	Description: "The HTTP request latencies in seconds.",
+	Type:        "summary"}
+
+var resSz = &Metric{
+	ID:          "resSz",
+	Name:        "response_size_bytes",
+	Description: "The HTTP response sizes in bytes.",
+	Type:        "summary"}
+
+var reqSz = &Metric{
+	ID:          "reqSz",
+	Name:        "request_size_bytes",
+	Description: "The HTTP request sizes in bytes.",
+	Type:        "summary"}
+
+var standardMetrics = []*Metric{
+	reqCnt,
+	reqDur,
+	resSz,
+	reqSz,
+}
+
 /*
 RequestCounterURLLabelMappingFn is a function which can be supplied to the middleware to control
 the cardinality of the request counter's "url" label, which might be required in some contexts.
@@ -37,15 +72,26 @@ which would map "/customer/alice" and "/customer/bob" to their template "/custom
 */
 type RequestCounterURLLabelMappingFn func(c *gin.Context) string
 
+// Metric is a definition for the name, description, type, ID, and
+// prometheus.Collector type (i.e. CounterVec, Summary, etc) of each metric
+type Metric struct {
+	MetricCollector prometheus.Collector
+	ID              string
+	Name            string
+	Description     string
+	Type            string
+	Args            []string
+}
+
 // Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
 	reqDur, reqSz, resSz prometheus.Summary
 	router               *gin.Engine
 	listenAddress        string
+	Ppg                  PrometheusPushGateway
 
-	Ppg PrometheusPushGateway
-
+	MetricsList []*Metric
 	MetricsPath string
 
 	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
@@ -70,14 +116,28 @@ type PrometheusPushGateway struct {
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
-func NewPrometheus(subsystem string) *Prometheus {
+func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus {
+
+	var metricsList []*Metric
+
+	if len(customMetricsList) > 1 {
+		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
+	} else if len(customMetricsList) == 1 {
+		metricsList = customMetricsList[0]
+	}
+
+	for _, metric := range standardMetrics {
+		metricsList = append(metricsList, metric)
+	}
 
 	p := &Prometheus{
+		MetricsList: metricsList,
 		MetricsPath: defaultMetricPath,
 		ReqCntURLLabelMappingFn: func(c *gin.Context) string {
 			return c.Request.URL.String() // i.e. by default do nothing, i.e. return URL as is
 		},
 	}
+
 	p.registerMetrics(subsystem)
 
 	return p
@@ -168,65 +228,103 @@ func (p *Prometheus) startPushTicker() {
 	}()
 }
 
+// NewMetric associates prometheus.Collector based on Metric.Type
+func NewMetric(m *Metric, subsystem string) prometheus.Collector {
+	var metric prometheus.Collector
+	switch m.Type {
+	case "counter_vec":
+		metric = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+			m.Args,
+		)
+	case "counter":
+		metric = prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+		)
+	case "gauge_vec":
+		metric = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+			m.Args,
+		)
+	case "gauge":
+		metric = prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+		)
+	case "histogram_vec":
+		metric = prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+			m.Args,
+		)
+	case "histogram":
+		metric = prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+		)
+	case "summary_vec":
+		metric = prometheus.NewSummaryVec(
+			prometheus.SummaryOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+			m.Args,
+		)
+	case "summary":
+		metric = prometheus.NewSummary(
+			prometheus.SummaryOpts{
+				Subsystem: subsystem,
+				Name:      m.Name,
+				Help:      m.Description,
+			},
+		)
+	}
+	return metric
+}
+
 func (p *Prometheus) registerMetrics(subsystem string) {
 
-	p.reqCnt = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: subsystem,
-			Name:      "requests_total",
-			Help:      "How many HTTP requests processed, partitioned by status code and HTTP method.",
-		},
-		[]string{"code", "method", "handler", "host", "url"},
-	)
-
-	if err := prometheus.Register(p.reqCnt); err != nil {
-		log.Info("reqCnt could not be registered: ", err)
-	} else {
-		log.Info("reqCnt registered.")
+	for _, metricDef := range p.MetricsList {
+		metric := NewMetric(metricDef, subsystem)
+		if err := prometheus.Register(metric); err != nil {
+			log.Infof("%s could not be registered: ", metricDef.Name, err)
+		} else {
+			log.Infof("%s registered.", metricDef.Name)
+		}
+		switch metricDef {
+		case reqCnt:
+			p.reqCnt = metric.(*prometheus.CounterVec)
+		case reqDur:
+			p.reqDur = metric.(prometheus.Summary)
+		case resSz:
+			p.resSz = metric.(prometheus.Summary)
+		case reqSz:
+			p.reqSz = metric.(prometheus.Summary)
+		}
+		metricDef.MetricCollector = metric
 	}
-
-	p.reqDur = prometheus.NewSummary(
-		prometheus.SummaryOpts{
-			Subsystem: subsystem,
-			Name:      "request_duration_seconds",
-			Help:      "The HTTP request latencies in seconds.",
-		},
-	)
-
-	if err := prometheus.Register(p.reqDur); err != nil {
-		log.Info("reqDur could not be registered: ", err)
-	} else {
-		log.Info("reqDur registered.")
-	}
-
-	p.reqSz = prometheus.NewSummary(
-		prometheus.SummaryOpts{
-			Subsystem: subsystem,
-			Name:      "request_size_bytes",
-			Help:      "The HTTP request sizes in bytes.",
-		},
-	)
-
-	if err := prometheus.Register(p.reqSz); err != nil {
-		log.Info("reqSz could not be registered: ", err)
-	} else {
-		log.Info("reqSz registered.")
-	}
-
-	p.resSz = prometheus.NewSummary(
-		prometheus.SummaryOpts{
-			Subsystem: subsystem,
-			Name:      "response_size_bytes",
-			Help:      "The HTTP response sizes in bytes.",
-		},
-	)
-
-	if err := prometheus.Register(p.resSz); err != nil {
-		log.Info("resSz could not be registered: ", err)
-	} else {
-		log.Info("resSz registered.")
-	}
-
 }
 
 // Use adds the middleware to a gin engine.
