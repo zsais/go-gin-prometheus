@@ -166,6 +166,15 @@ func (p *Prometheus) SetListenAddress(address string) {
 	}
 }
 
+// SetListenAddressWithRouter for using a separate router to expose metrics. (this keeps things like GET /metrics out of
+// your content's access log).
+func (p *Prometheus) SetListenAddressWithRouter(listenAddress string, r *gin.Engine) {
+	p.listenAddress = listenAddress
+	if len(p.listenAddress) > 0 {
+		p.router = r
+	}
+}
+
 func (p *Prometheus) setMetricsPath(e *gin.Engine) {
 
 	if p.listenAddress != "" {
