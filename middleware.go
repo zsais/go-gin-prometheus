@@ -222,9 +222,8 @@ func (p *Prometheus) getPushGatewayURL() string {
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
 	client := &http.Client{}
-	_, err = client.Do(req)
-	if err != nil {
-		log.Error("Error sending to push gatway: " + err.Error())
+	if _, err = client.Do(req); err != nil {
+		log.WithError(err).Errorln("Error sending to push gateway")
 	}
 }
 
@@ -318,9 +317,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
 		if err := prometheus.Register(metric); err != nil {
-			log.Infof("%s could not be registered: ", metricDef.Name, err)
-		} else {
-			log.Infof("%s registered.", metricDef.Name)
+			log.WithError(err).Errorf("%s could not be registered in Prometheus", metricDef.Name)
 		}
 		switch metricDef {
 		case reqCnt:
