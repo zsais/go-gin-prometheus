@@ -95,6 +95,9 @@ type Prometheus struct {
 	MetricsPath string
 
 	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
+
+	// gin.Context string to use as a prometheus URL label
+	URLLabelFromContext string
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
@@ -366,6 +369,14 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 
 		p.reqDur.Observe(elapsed)
 		url := p.ReqCntURLLabelMappingFn(c)
+		// jlambert Oct 2018 - sidecar specific mod
+		if len(p.URLLabelFromContext) > 0 {
+			u, found := c.Get(p.URLLabelFromContext)
+			if !found {
+				u = "unknown"
+			}
+			url = u.(string)
+		}
 		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName(), c.Request.Host, url).Inc()
 		p.reqSz.Observe(float64(reqSz))
 		p.resSz.Observe(resSz)
