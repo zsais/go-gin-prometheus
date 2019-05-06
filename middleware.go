@@ -344,6 +344,16 @@ func (p *Prometheus) Use(e *gin.Engine) {
 	p.SetMetricsPath(e)
 }
 
+// GetListenAddress returns current listenAddress
+func (p *Prometheus) GetListenAddress() string {
+	return p.listenAddress
+}
+
+// GetRouter returns current gin router
+func (p *Prometheus) GetRouter() *gin.Engine {
+	return p.router
+}
+
 // UseWithAuth adds the middleware to a gin engine with BasicAuth.
 func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 	e.Use(p.HandlerFunc())
