@@ -58,7 +58,7 @@ For instance, if for a "/customer/:name" route you don't want to generate a time
 possible customer name, you could use this function:
 
 func(c *gin.Context) string {
-	url := c.Request.URL.String()
+	url := c.Request.URL.Path
 	for _, p := range c.Params {
 		if p.Key == "name" {
 			url = strings.Replace(url, p.Value, ":name", 1)
@@ -137,7 +137,7 @@ func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus
 		MetricsList: metricsList,
 		MetricsPath: defaultMetricPath,
 		ReqCntURLLabelMappingFn: func(c *gin.Context) string {
-			return c.Request.URL.String() // i.e. by default do nothing, i.e. return URL as is
+			return c.Request.URL.Path // i.e. by default do nothing, i.e. return URL as is
 		},
 	}
 
@@ -353,7 +353,7 @@ func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.URL.String() == p.MetricsPath {
+		if c.Request.URL.Path == p.MetricsPath {
 			c.Next()
 			return
 		}
@@ -394,7 +394,7 @@ func prometheusHandler() gin.HandlerFunc {
 func computeApproximateRequestSize(r *http.Request) int {
 	s := 0
 	if r.URL != nil {
-		s = len(r.URL.String())
+		s = len(r.URL.Path)
 	}
 
 	s += len(r.Method)

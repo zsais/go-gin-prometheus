@@ -61,7 +61,7 @@ func main() {
 	p := ginprometheus.NewPrometheus("gin")
 
 	p.ReqCntURLLabelMappingFn = func(c *gin.Context) string {
-		url := c.Request.URL.String()
+		url := c.Request.URL.Path
 		for _, p := range c.Params {
 			if p.Key == "name" {
 				url = strings.Replace(url, p.Value, ":name", 1)
