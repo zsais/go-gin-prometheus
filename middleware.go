@@ -299,18 +299,20 @@ func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 	case "summary_vec":
 		metric = prometheus.NewSummaryVec(
 			prometheus.SummaryOpts{
-				Subsystem: subsystem,
-				Name:      m.Name,
-				Help:      m.Description,
+				Subsystem:  subsystem,
+				Name:       m.Name,
+				Help:       m.Description,
+				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 			},
 			m.Args,
 		)
 	case "summary":
 		metric = prometheus.NewSummary(
 			prometheus.SummaryOpts{
-				Subsystem: subsystem,
-				Name:      m.Name,
-				Help:      m.Description,
+				Subsystem:  subsystem,
+				Name:       m.Name,
+				Help:       m.Description,
+				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 			},
 		)
 	}
