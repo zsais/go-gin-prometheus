@@ -30,7 +30,9 @@ var reqDur = &Metric{
 	ID:          "reqDur",
 	Name:        "request_duration_seconds",
 	Description: "The HTTP request latencies in seconds.",
-	Type:        "summary"}
+	Type:        "histogram_vec",
+	Args:        []string{"code", "method", "url"},
+}
 
 var resSz = &Metric{
 	ID:          "resSz",
@@ -85,11 +87,12 @@ type Metric struct {
 
 // Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
-	reqCnt               *prometheus.CounterVec
-	reqDur, reqSz, resSz prometheus.Summary
-	router               *gin.Engine
-	listenAddress        string
-	Ppg                  PrometheusPushGateway
+	reqCnt        *prometheus.CounterVec
+	reqDur        *prometheus.HistogramVec
+	reqSz, resSz  prometheus.Summary
+	router        *gin.Engine
+	listenAddress string
+	Ppg           PrometheusPushGateway
 
 	MetricsList []*Metric
 	MetricsPath string
@@ -328,7 +331,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 		case reqCnt:
 			p.reqCnt = metric.(*prometheus.CounterVec)
 		case reqDur:
-			p.reqDur = metric.(prometheus.Summary)
+			p.reqDur = metric.(*prometheus.HistogramVec)
 		case resSz:
 			p.resSz = metric.(prometheus.Summary)
 		case reqSz:
@@ -367,7 +370,6 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Writer.Size())
 
-		p.reqDur.Observe(elapsed)
 		url := p.ReqCntURLLabelMappingFn(c)
 		// jlambert Oct 2018 - sidecar specific mod
 		if len(p.URLLabelFromContext) > 0 {
@@ -377,6 +379,7 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 			}
 			url = u.(string)
 		}
+		p.reqDur.WithLabelValues(status, c.Request.Method, url).Observe(elapsed)
 		p.reqCnt.WithLabelValues(status, c.Request.Method, c.HandlerName(), c.Request.Host, url).Inc()
 		p.reqSz.Observe(float64(reqSz))
 		p.resSz.Observe(resSz)
