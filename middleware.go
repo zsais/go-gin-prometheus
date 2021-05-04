@@ -101,8 +101,9 @@ type Prometheus struct {
 	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
 
 	// gin.Context string to use as a prometheus URL label
-	URLLabelFromContext       string
-	StatusOverrideFromContext string
+	URLLabelFromContext string
+	//read value to override api status ( first match in array)
+	StatusOverrideFromContext []string
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
@@ -369,10 +370,15 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 		c.Next()
 
 		status := strconv.Itoa(c.Writer.Status())
-		if p.StatusOverrideFromContext != "" {
-			statusFromContext, found := c.Get(p.StatusOverrideFromContext)
-			if found {
-				status = fmt.Sprintf("%v", statusFromContext)
+
+		//iterate over each context key to find first match
+		if len(p.StatusOverrideFromContext) > 0 {
+			for _, v := range p.StatusOverrideFromContext {
+				statusFromContext, found := c.Get(v)
+				if found {
+					status = fmt.Sprintf("%v", statusFromContext)
+					break
+				}
 			}
 		}
 
