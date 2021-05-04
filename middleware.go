@@ -2,6 +2,7 @@ package ginprometheus
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -101,6 +102,8 @@ type Prometheus struct {
 
 	// gin.Context string to use as a prometheus URL label
 	URLLabelFromContext string
+	//read value to override api status ( first match in array)
+	StatusOverrideFromContext []string
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
@@ -367,6 +370,18 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 		c.Next()
 
 		status := strconv.Itoa(c.Writer.Status())
+
+		//iterate over each context key to find first match
+		if len(p.StatusOverrideFromContext) > 0 {
+			for _, v := range p.StatusOverrideFromContext {
+				statusFromContext, found := c.Get(v)
+				if found {
+					status = fmt.Sprintf("%v", statusFromContext)
+					break
+				}
+			}
+		}
+
 		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Writer.Size())
 
