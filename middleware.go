@@ -101,6 +101,7 @@ type Prometheus struct {
 	router        *gin.Engine
 	listenAddress string
 	Ppg           PrometheusPushGateway
+	reg           *prometheus.Registry
 
 	MetricsList []*Metric
 	MetricsPath string
@@ -193,10 +194,10 @@ func (p *Prometheus) SetListenAddressWithRouter(listenAddress string, r *gin.Eng
 func (p *Prometheus) SetMetricsPath(e *gin.Engine) {
 
 	if p.listenAddress != "" {
-		p.router.GET(p.MetricsPath, prometheusHandler())
+		p.router.GET(p.MetricsPath, p.prometheusHandler())
 		p.runServer()
 	} else {
-		e.GET(p.MetricsPath, prometheusHandler())
+		e.GET(p.MetricsPath, p.prometheusHandler())
 	}
 }
 
@@ -204,10 +205,10 @@ func (p *Prometheus) SetMetricsPath(e *gin.Engine) {
 func (p *Prometheus) SetMetricsPathWithAuth(e *gin.Engine, accounts gin.Accounts) {
 
 	if p.listenAddress != "" {
-		p.router.GET(p.MetricsPath, gin.BasicAuth(accounts), prometheusHandler())
+		p.router.GET(p.MetricsPath, gin.BasicAuth(accounts), p.prometheusHandler())
 		p.runServer()
 	} else {
-		e.GET(p.MetricsPath, gin.BasicAuth(accounts), prometheusHandler())
+		e.GET(p.MetricsPath, gin.BasicAuth(accounts), p.prometheusHandler())
 	}
 
 }
@@ -330,9 +331,13 @@ func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 
 func (p *Prometheus) registerMetrics(subsystem string) {
 
+	p.reg = prometheus.NewRegistry()
+	p.reg.Register(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	p.reg.Register(prometheus.NewGoCollector())
+
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
-		if err := prometheus.Register(metric); err != nil {
+		if err := p.reg.Register(metric); err != nil {
 			log.WithError(err).Errorf("%s could not be registered in Prometheus", metricDef.Name)
 		}
 		switch metricDef {
@@ -398,8 +403,8 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	}
 }
 
-func prometheusHandler() gin.HandlerFunc {
-	h := promhttp.Handler()
+func (p *Prometheus) prometheusHandler() gin.HandlerFunc {
+	h := promhttp.HandlerFor(p.reg, promhttp.HandlerOpts{})
 	return func(c *gin.Context) {
 		h.ServeHTTP(c.Writer, c.Request)
 	}
