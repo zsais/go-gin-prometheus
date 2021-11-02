@@ -19,6 +19,12 @@ var defaultMetricPath = "/metrics"
 // Standard default metrics
 //	counter, counter_vec, gauge, gauge_vec,
 //	histogram, histogram_vec, summary, summary_vec
+var reqInFlight = &Metric{
+	ID:          "reqInFlight",
+	Name:        "in_flight_requests",
+	Description: "A gauge of requests currently being served by the wrapped handler.",
+	Type:        "gauge",
+}
 var reqCnt = &Metric{
 	ID:          "reqCnt",
 	Name:        "requests_total",
@@ -47,6 +53,7 @@ var reqSz = &Metric{
 	Type:        "summary"}
 
 var standardMetrics = []*Metric{
+	reqInFlight,
 	reqCnt,
 	reqDur,
 	resSz,
@@ -87,6 +94,7 @@ type Metric struct {
 
 // Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
+	reqInFlight   prometheus.Gauge
 	reqCnt        *prometheus.CounterVec
 	reqDur        *prometheus.HistogramVec
 	reqSz, resSz  prometheus.Summary
@@ -336,6 +344,8 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 			p.resSz = metric.(prometheus.Summary)
 		case reqSz:
 			p.reqSz = metric.(prometheus.Summary)
+		case reqInFlight:
+			p.reqInFlight = metric.(prometheus.Gauge)
 		}
 		metricDef.MetricCollector = metric
 	}
@@ -356,6 +366,8 @@ func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		p.reqInFlight.Inc()
+		defer p.reqInFlight.Dec()
 		if c.Request.URL.Path == p.MetricsPath {
 			c.Next()
 			return
