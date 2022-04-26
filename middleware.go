@@ -94,7 +94,7 @@ type Prometheus struct {
 	listenAddress string
 	Ppg           PrometheusPushGateway
 
-	MetricsList []*Metric
+	MetricsList map[string]*Metric
 	MetricsPath string
 
 	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
@@ -124,16 +124,21 @@ type PrometheusPushGateway struct {
 // NewPrometheus generates a new set of metrics with a certain subsystem name
 func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus {
 
-	var metricsList []*Metric
+	metricsList := make(map[string]*Metric)
 
 	if len(customMetricsList) > 1 {
 		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
 	} else if len(customMetricsList) == 1 {
-		metricsList = customMetricsList[0]
+		if len(customMetricsList[0]) > 0 {
+			for _, metric := range customMetricsList[0] {
+				metricsList[metric.ID] = metric
+			}
+		}
+
 	}
 
 	for _, metric := range standardMetrics {
-		metricsList = append(metricsList, metric)
+		metricsList[metric.ID] = metric
 	}
 
 	p := &Prometheus{
@@ -229,6 +234,10 @@ func (p *Prometheus) getPushGatewayURL() string {
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
+	if err != nil {
+		log.WithError(err).Errorln("Error New post request")
+		return
+	}
 	client := &http.Client{}
 	if _, err = client.Do(req); err != nil {
 		log.WithError(err).Errorln("Error sending to push gateway")
