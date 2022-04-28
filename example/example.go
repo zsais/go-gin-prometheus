@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mcuadros/go-gin-prometheus"
+	ginprometheus "github.com/mcuadros/go-gin-prometheus"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,9 +28,29 @@ func main() {
 			//	histogram, histogram_vec, summary, summary_vec
 		}
 		p := ginprometheus.NewPrometheus("gin", customMetrics)
+		// add data to custom metrics
+		m := p.MetricsList["1234"].MetricCollector.(prometheus.Counter)
+		m.Inc()
 	*/
 
-	p := ginprometheus.NewPrometheus("gin")
+	customMetrics := []*ginprometheus.Metric{
+		{
+			ID:          "1234",                // optional string
+			Name:        "test_metric",         // required string
+			Description: "Counter test metric", // required string
+			Type:        "counter",             // required string
+		},
+		{
+			ID:          "1235",                // Identifier
+			Name:        "test_metric_2",       // Metric Name
+			Description: "Summary test metric", // Help Description
+			Type:        "summary",             // type associated with prometheus collector
+		},
+		// Type Options:
+		//	counter, counter_vec, gauge, gauge_vec,
+		//	histogram, histogram_vec, summary, summary_vec
+	}
+	p := ginprometheus.NewPrometheus("gin", customMetrics)
 
 	p.Use(r)
 	r.GET("/", func(c *gin.Context) {
