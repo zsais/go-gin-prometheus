@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -101,6 +102,7 @@ type Prometheus struct {
 
 	// gin.Context string to use as a prometheus URL label
 	URLLabelFromContext string
+	sync.RWMutex
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
@@ -123,7 +125,6 @@ type PrometheusPushGateway struct {
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
 func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus {
-
 	metricsList := make(map[string]*Metric)
 
 	if len(customMetricsList) > 1 {
@@ -134,7 +135,6 @@ func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus
 				metricsList[metric.ID] = metric
 			}
 		}
-
 	}
 
 	for _, metric := range standardMetrics {
@@ -222,6 +222,12 @@ func (p *Prometheus) getMetrics() []byte {
 	body, _ := ioutil.ReadAll(response.Body)
 
 	return body
+}
+
+func (p *Prometheus) GetMetric(id string) *Metric {
+	p.RLock()
+	defer p.RUnlock()
+	return p.MetricsList[id]
 }
 
 func (p *Prometheus) getPushGatewayURL() string {
@@ -330,7 +336,6 @@ func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 }
 
 func (p *Prometheus) registerMetrics(subsystem string) {
-
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
 		if err := prometheus.Register(metric); err != nil {
