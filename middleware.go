@@ -207,10 +207,17 @@ func (p *Prometheus) runServer() {
 }
 
 func (p *Prometheus) getMetrics() []byte {
-	response, _ := http.Get(p.Ppg.MetricsURL)
+	response, err := http.Get(p.Ppg.MetricsURL)
+	if err != nil {
+		// Swallow the error for now...
+	}
 
 	defer response.Body.Close()
-	body, _ := ioutil.ReadAll(response.Body)
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		// Swallow the error for now...
+	}
 
 	return body
 }
