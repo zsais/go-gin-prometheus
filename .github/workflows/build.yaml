@@ -13,21 +13,14 @@ jobs:
         with:
           go-version: 1.19
 
-        # Install all the dependencies
-      - name: Install dependencies
-        run: |
-          go version
-          go get -u golang.org/x/lint/golint
-
       - name: Build
         run:
           go build -v ./...
 
           # Run vet & lint on the code
-      - name: Run vet & lint
+      - name: Run vet
         run: |
           go vet .
-          golint .
 
       - name: Test
         run: go test -v ./...
