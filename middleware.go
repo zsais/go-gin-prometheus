@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 var defaultMetricPath = "/metrics"
 
 // Standard default metrics
+//
 //	counter, counter_vec, gauge, gauge_vec,
 //	histogram, histogram_vec, summary, summary_vec
 var reqCnt = &Metric{
@@ -59,16 +61,16 @@ the cardinality of the request counter's "url" label, which might be required in
 For instance, if for a "/customer/:name" route you don't want to generate a time series for every
 possible customer name, you could use this function:
 
-func(c *gin.Context) string {
-	url := c.Request.URL.Path
-	for _, p := range c.Params {
-		if p.Key == "name" {
-			url = strings.Replace(url, p.Value, ":name", 1)
-			break
+	func(c *gin.Context) string {
+		url := c.Request.URL.Path
+		for _, p := range c.Params {
+			if p.Key == "name" {
+				url = strings.Replace(url, p.Value, ":name", 1)
+				break
+			}
 		}
+		return url
 	}
-	return url
-}
 
 which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
 */
@@ -343,20 +345,20 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 
 // Use adds the middleware to a gin engine.
 func (p *Prometheus) Use(e *gin.Engine) {
-	e.Use(p.HandlerFunc())
+	e.Use(p.HandlerFunc(nil))
 	p.SetMetricsPath(e)
 }
 
 // UseWithAuth adds the middleware to a gin engine with BasicAuth.
 func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
-	e.Use(p.HandlerFunc())
+	e.Use(p.HandlerFunc(nil))
 	p.SetMetricsPathWithAuth(e, accounts)
 }
 
 // HandlerFunc defines handler function for middleware
-func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
+func (p *Prometheus) HandlerFunc(ignoreCodes []int) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == p.MetricsPath {
+		if c.Request.URL.Path == p.MetricsPath || c.Writer.Status() == http.StatusNotFound {
 			c.Next()
 			return
 		}
@@ -365,10 +367,13 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 		reqSz := computeApproximateRequestSize(c.Request)
 
 		c.Next()
-
 		status := strconv.Itoa(c.Writer.Status())
 		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Writer.Size())
+
+		if ignoreCodes != nil && slices.Contains(ignoreCodes, c.Writer.Status()) {
+			return
+		}
 
 		url := p.ReqCntURLLabelMappingFn(c)
 		// jlambert Oct 2018 - sidecar specific mod
