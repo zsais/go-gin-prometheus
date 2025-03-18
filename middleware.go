@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -14,9 +15,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var defaultMetricPath = "/metrics"
+var (
+	defaultMetricPath   string   = "/metrics"
+	excludedPaths       []string = []string{}
+	excludedStatusCodes []int    = []int{}
+)
 
 // Standard default metrics
+//
 //	counter, counter_vec, gauge, gauge_vec,
 //	histogram, histogram_vec, summary, summary_vec
 var reqCnt = &Metric{
@@ -59,16 +65,16 @@ the cardinality of the request counter's "url" label, which might be required in
 For instance, if for a "/customer/:name" route you don't want to generate a time series for every
 possible customer name, you could use this function:
 
-func(c *gin.Context) string {
-	url := c.Request.URL.Path
-	for _, p := range c.Params {
-		if p.Key == "name" {
-			url = strings.Replace(url, p.Value, ":name", 1)
-			break
+	func(c *gin.Context) string {
+		url := c.Request.URL.Path
+		for _, p := range c.Params {
+			if p.Key == "name" {
+				url = strings.Replace(url, p.Value, ":name", 1)
+				break
+			}
 		}
+		return url
 	}
-	return url
-}
 
 which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
 */
@@ -353,10 +359,35 @@ func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 	p.SetMetricsPathWithAuth(e, accounts)
 }
 
+// ExcludePaths function to exclude URL paths from being monitored by Prometheus
+func (p *Prometheus) ExcludePaths(paths ...string) {
+	excludedPaths = append(excludedPaths, paths...)
+}
+
+// GetExcludedPaths function to get excluded URL paths
+func (p *Prometheus) GetExcludedPaths() []string {
+	return excludedPaths
+}
+
+// ExcludeStatusCodes function to exclude request response's status code from being monitored by Prometheus
+func (p *Prometheus) ExcludeStatusCodes(codes ...int) {
+	excludedStatusCodes = append(excludedStatusCodes, codes...)
+}
+
+// GetExcludedStatusCodes function returns excluded status codes
+func (p *Prometheus) GetExcludedStatusCodes() []int {
+	return excludedStatusCodes
+}
+
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == p.MetricsPath {
+		if c.Request.URL.Path == p.MetricsPath || slices.Contains(excludedPaths, c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
+		if slices.Contains(excludedStatusCodes, c.Writer.Status()) {
 			c.Next()
 			return
 		}
