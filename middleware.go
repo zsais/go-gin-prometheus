@@ -15,11 +15,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	defaultMetricPath   string   = "/metrics"
-	excludedPaths       []string = []string{}
-	excludedStatusCodes []int    = []int{}
-)
+var defaultMetricPath = "/metrics"
+
+var exclusionList = &Exclusion{
+	Paths:       []string{},
+	StatusCodes: []int{},
+}
 
 // Standard default metrics
 //
@@ -125,6 +126,11 @@ type PrometheusPushGateway struct {
 
 	// pushgateway job name, defaults to "gin"
 	Job string
+}
+
+type Exclusion struct {
+	Paths       []string
+	StatusCodes []int
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
@@ -361,33 +367,28 @@ func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 
 // ExcludePaths function to exclude URL paths from being monitored by Prometheus
 func (p *Prometheus) ExcludePaths(paths ...string) {
-	excludedPaths = append(excludedPaths, paths...)
+	exclusionList.Paths = appendEfficiently(exclusionList.Paths, paths)
 }
 
 // GetExcludedPaths function to get excluded URL paths
 func (p *Prometheus) GetExcludedPaths() []string {
-	return excludedPaths
+	return exclusionList.Paths
 }
 
 // ExcludeStatusCodes function to exclude request response's status code from being monitored by Prometheus
 func (p *Prometheus) ExcludeStatusCodes(codes ...int) {
-	excludedStatusCodes = append(excludedStatusCodes, codes...)
+	exclusionList.StatusCodes = appendEfficiently(exclusionList.StatusCodes, codes)
 }
 
 // GetExcludedStatusCodes function returns excluded status codes
 func (p *Prometheus) GetExcludedStatusCodes() []int {
-	return excludedStatusCodes
+	return exclusionList.StatusCodes
 }
 
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == p.MetricsPath || slices.Contains(excludedPaths, c.Request.URL.Path) {
-			c.Next()
-			return
-		}
-
-		if slices.Contains(excludedStatusCodes, c.Writer.Status()) {
+		if c.Request.URL.Path == p.MetricsPath || slices.Contains(exclusionList.Paths, c.Request.URL.Path) || slices.Contains(exclusionList.StatusCodes, c.Writer.Status()) {
 			c.Next()
 			return
 		}
@@ -447,4 +448,14 @@ func computeApproximateRequestSize(r *http.Request) int {
 		s += int(r.ContentLength)
 	}
 	return s
+}
+
+func appendEfficiently[T int | string](slice []T, toAppend []T) []T {
+	totalLength := len(slice) + len(toAppend)
+	if cap(slice) < totalLength {
+		newSlice := make([]T, len(slice), totalLength)
+		copy(newSlice, slice)
+		slice = newSlice
+	}
+	return append(slice, toAppend...)
 }
