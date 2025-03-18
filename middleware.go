@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -16,7 +17,13 @@ import (
 
 var defaultMetricPath = "/metrics"
 
+var exclusionList = &Exclusion{
+	Paths:       []string{},
+	StatusCodes: []int{},
+}
+
 // Standard default metrics
+//
 //	counter, counter_vec, gauge, gauge_vec,
 //	histogram, histogram_vec, summary, summary_vec
 var reqCnt = &Metric{
@@ -59,16 +66,16 @@ the cardinality of the request counter's "url" label, which might be required in
 For instance, if for a "/customer/:name" route you don't want to generate a time series for every
 possible customer name, you could use this function:
 
-func(c *gin.Context) string {
-	url := c.Request.URL.Path
-	for _, p := range c.Params {
-		if p.Key == "name" {
-			url = strings.Replace(url, p.Value, ":name", 1)
-			break
+	func(c *gin.Context) string {
+		url := c.Request.URL.Path
+		for _, p := range c.Params {
+			if p.Key == "name" {
+				url = strings.Replace(url, p.Value, ":name", 1)
+				break
+			}
 		}
+		return url
 	}
-	return url
-}
 
 which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
 */
@@ -119,6 +126,11 @@ type PrometheusPushGateway struct {
 
 	// pushgateway job name, defaults to "gin"
 	Job string
+}
+
+type Exclusion struct {
+	Paths       []string
+	StatusCodes []int
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
@@ -353,10 +365,30 @@ func (p *Prometheus) UseWithAuth(e *gin.Engine, accounts gin.Accounts) {
 	p.SetMetricsPathWithAuth(e, accounts)
 }
 
+// ExcludePaths function to exclude URL paths from being monitored by Prometheus
+func (p *Prometheus) ExcludePaths(paths ...string) {
+	exclusionList.Paths = appendEfficiently(exclusionList.Paths, paths)
+}
+
+// GetExcludedPaths function to get excluded URL paths
+func (p *Prometheus) GetExcludedPaths() []string {
+	return exclusionList.Paths
+}
+
+// ExcludeStatusCodes function to exclude request response's status code from being monitored by Prometheus
+func (p *Prometheus) ExcludeStatusCodes(codes ...int) {
+	exclusionList.StatusCodes = appendEfficiently(exclusionList.StatusCodes, codes)
+}
+
+// GetExcludedStatusCodes function returns excluded status codes
+func (p *Prometheus) GetExcludedStatusCodes() []int {
+	return exclusionList.StatusCodes
+}
+
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == p.MetricsPath {
+		if c.Request.URL.Path == p.MetricsPath || slices.Contains(exclusionList.Paths, c.Request.URL.Path) || slices.Contains(exclusionList.StatusCodes, c.Writer.Status()) {
 			c.Next()
 			return
 		}
@@ -416,4 +448,14 @@ func computeApproximateRequestSize(r *http.Request) int {
 		s += int(r.ContentLength)
 	}
 	return s
+}
+
+func appendEfficiently[T int | string](slice []T, toAppend []T) []T {
+	totalLength := len(slice) + len(toAppend)
+	if cap(slice) < totalLength {
+		newSlice := make([]T, len(slice), totalLength)
+		copy(newSlice, slice)
+		slice = newSlice
+	}
+	return append(slice, toAppend...)
 }
