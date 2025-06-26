@@ -20,7 +20,10 @@ import (
 func main() {
 	r := gin.New()
 
-	p := ginprometheus.NewPrometheus("gin")
+	// NewWithConfig is the recommended way to initialize the middleware
+	p := ginprometheus.NewWithConfig(ginprometheus.Config{
+		Subsystem: "gin",
+	})
 	p.Use(r)
 
 	r.GET("/", func(c *gin.Context) {
@@ -32,6 +35,38 @@ func main() {
 ```
 
 See the [example.go file](https://github.com/zsais/go-gin-prometheus/blob/master/example/example.go)
+
+## Custom Labels
+
+It is possible to add custom labels to all metrics.
+
+```go
+package main
+
+import (
+    "github.com/gin-gonic/gin"
+    "github.com/zsais/go-gin-prometheus"
+)
+
+func main() {
+    r := gin.New()
+
+    // NewWithConfig is the recommended way to initialize the middleware
+    p := ginprometheus.NewWithConfig(ginprometheus.Config{
+        Subsystem: "gin",
+        CustomLabels: map[string]string{
+            "custom_label": "custom_value",
+        },
+    })
+    p.Use(r)
+
+    r.GET("/", func(c *gin.Context) {
+        c.JSON(200, "Hello world!")
+    })
+
+    r.Run(":29090")
+}
+```
 
 ## Preserving a low cardinality for the request counter
 
@@ -51,6 +86,7 @@ you could supply this mapping function to the middleware:
 package main
 
 import (
+	"strings"
 	"github.com/gin-gonic/gin"
 	"github.com/zsais/go-gin-prometheus"
 )
@@ -58,7 +94,10 @@ import (
 func main() {
 	r := gin.New()
 
-	p := ginprometheus.NewPrometheus("gin")
+	// NewWithConfig is the recommended way to initialize the middleware
+	p := ginprometheus.NewWithConfig(ginprometheus.Config{
+		Subsystem: "gin",
+	})
 
 	p.ReqCntURLLabelMappingFn = func(c *gin.Context) string {
 		url := c.Request.URL.Path
@@ -84,3 +123,14 @@ func main() {
 which would map `/customer/alice` and `/customer/bob` to their
 template `/customer/:name`, and thus preserve a low cardinality for
 our metrics.
+
+### Note for Contributors
+
+The default branch of this repository will soon be renamed from `master` to `main`. To update your local clone after this change has been made, you can use the following commands:
+
+```bash
+git fetch origin
+git checkout main
+git branch -u origin/main
+git branch -d master
+```
