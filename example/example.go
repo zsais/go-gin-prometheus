@@ -1,7 +1,8 @@
+//go:build ignore
 package main
 
 import (
-	"github.com/mcuadros/go-gin-prometheus"
+	"github.com/zsais/go-gin-prometheus"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,12 +31,19 @@ func main() {
 		p := ginprometheus.NewPrometheus("gin", customMetrics)
 	*/
 
-	p := ginprometheus.NewPrometheus("gin")
+	p := ginprometheus.NewWithConfig(ginprometheus.Config{
+		Subsystem: "gin",
+		CustomLabels: map[string]string{
+			"custom_label": "custom_value",
+		},
+	})
 
 	p.Use(r)
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, "Hello world!")
 	})
 
-	r.Run(":29090")
+	if err := r.Run(":29090"); err != nil {
+		panic(err)
+	}
 }

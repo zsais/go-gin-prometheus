@@ -23,3 +23,16 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# Go binaries
+go-gin-prometheus
+
+# Environment variables
+.env*
+
+# IDE settings
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
