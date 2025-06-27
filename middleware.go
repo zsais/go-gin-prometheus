@@ -229,6 +229,10 @@ func (p *Prometheus) SetListenAddress(address string) {
 	p.listenAddress = address
 	if p.listenAddress != "" {
 		p.router = gin.Default()
+		// Log error if router initialization fails
+		if p.router == nil {
+			log.Error("Failed to initialize gin.Default() router")
+		}
 	}
 }
 
@@ -279,7 +283,7 @@ func (p *Prometheus) getMetrics() []byte {
 	response, err := http.Get(p.Ppg.MetricsURL)
 	if err != nil {
 		log.WithError(err).Error("p.Ppg.MetricsURL failed")
-		return nil
+		return []byte{}
 	}
 
 	defer func() {
@@ -311,7 +315,7 @@ func (p *Prometheus) getPushGatewayURL() string {
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
 	if err != nil {
-		log.WithError(err).Errorln("Error creating push gateway request")
+		log.WithError(err).Errorf("Error creating push gateway request for URL: %s", p.getPushGatewayURL())
 		return
 	}
 	client := &http.Client{}
