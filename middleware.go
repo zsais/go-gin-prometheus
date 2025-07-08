@@ -105,6 +105,8 @@ type Prometheus struct {
 	// Ppg is the Prometheus Push Gateway configuration.
 	Ppg PrometheusPushGateway
 
+	registerer prometheus.Registerer
+
 	// MetricsList is a list of custom metrics to be exposed.
 	MetricsList []*Metric
 	// MetricsPath is the path where the metrics will be exposed.
@@ -146,6 +148,8 @@ type Config struct {
 	MetricsList []*Metric
 	// CustomLabels is a map of custom labels to be added to all metrics.
 	CustomLabels map[string]string
+	// Registry is an optional registry to be used for registering the metrics.
+	Registry prometheus.Registerer
 }
 
 // NewPrometheus creates a new Prometheus middleware for backward compatibility.
@@ -196,6 +200,11 @@ func NewWithConfig(cfg Config) *Prometheus {
 		ReqCntURLLabelMappingFn: func(c *gin.Context) string {
 			return c.Request.URL.Path
 		},
+	}
+
+	p.registerer = prometheus.DefaultRegisterer
+	if cfg.Registry != nil {
+		p.registerer = cfg.Registry
 	}
 
 	p.registerMetrics(cfg.Subsystem)
@@ -420,7 +429,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
-		if err := prometheus.Register(metric); err != nil {
+		if err := p.registerer.Register(metric); err != nil {
 			log.WithError(err).Errorf("%s could not be registered in Prometheus", metricDef.Name)
 		}
 		switch metricDef.ID {
