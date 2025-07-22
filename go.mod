@@ -1,6 +1,6 @@
 module github.com/zsais/go-gin-prometheus
 
-go 1.24.3
+go 1.23.0
 
 require (
 	github.com/gin-gonic/gin v1.10.1
