@@ -18,6 +18,20 @@ func TestPrometheusMiddleware(t *testing.T) {
 	p := NewWithConfig(Config{})
 	p.Use(r)
 
+	runRestOfMiddlewareTest(t, r)
+}
+
+func TestPrometheusMiddlewareCustomRegistry(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	r := gin.New()
+	p := NewWithConfig(Config{Registry: reg})
+	p.Use(r)
+
+	runRestOfMiddlewareTest(t, r)
+}
+
+func runRestOfMiddlewareTest(t *testing.T, r *gin.Engine) {
+
 	r.GET("/api/v1/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
