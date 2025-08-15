@@ -118,6 +118,8 @@ type Prometheus struct {
 	// to get the URL label from the context.
 	URLLabelFromContext string
 	CustomLabels        map[string]string
+	// DisableBodyReading is a boolean that disables reading the request body.
+	DisableBodyReading bool
 }
 
 // PrometheusPushGateway contains the configuration for pushing to a Prometheus
@@ -146,6 +148,8 @@ type Config struct {
 	MetricsList []*Metric
 	// CustomLabels is a map of custom labels to be added to all metrics.
 	CustomLabels map[string]string
+	// DisableBodyReading is a boolean that disables reading the request body.
+	DisableBodyReading bool
 }
 
 // NewPrometheus creates a new Prometheus middleware for backward compatibility.
@@ -190,9 +194,10 @@ func NewWithConfig(cfg Config) *Prometheus {
 	metricsList := append(cfg.MetricsList, copiedStandardMetrics...)
 
 	p := &Prometheus{
-		MetricsList:  metricsList,
-		MetricsPath:  defaultMetricPath,
-		CustomLabels: cfg.CustomLabels,
+		MetricsList:        metricsList,
+		MetricsPath:        defaultMetricPath,
+		CustomLabels:       cfg.CustomLabels,
+		DisableBodyReading: cfg.DisableBodyReading,
 		ReqCntURLLabelMappingFn: func(c *gin.Context) string {
 			return c.Request.URL.Path
 		},
@@ -458,7 +463,7 @@ func (p *Prometheus) HandlerFunc() gin.HandlerFunc {
 		}
 
 		start := time.Now()
-		reqSz := computeApproximateRequestSize(c.Request)
+		reqSz := p.computeApproximateRequestSize(c.Request)
 
 		c.Next()
 
@@ -510,7 +515,7 @@ func prometheusHandler() gin.HandlerFunc {
 }
 
 // computeApproximateRequestSize computes the approximate size of a request.
-func computeApproximateRequestSize(r *http.Request) int {
+func (p *Prometheus) computeApproximateRequestSize(r *http.Request) int {
 	s := 0
 	if r.URL != nil {
 		s = len(r.URL.Path)
@@ -529,6 +534,13 @@ func computeApproximateRequestSize(r *http.Request) int {
 	// N.B. r.Form and r.MultipartForm are assumed to be included in r.URL.
 
 	if r.Body == nil {
+		if r.ContentLength != -1 {
+			s += int(r.ContentLength)
+		}
+		return s
+	}
+
+	if p.DisableBodyReading {
 		if r.ContentLength != -1 {
 			s += int(r.ContentLength)
 		}

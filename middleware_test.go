@@ -71,3 +71,35 @@ func TestCustomLabels(t *testing.T) {
 		t.Errorf("expected custom label to be set but it was not")
 	}
 }
+
+func TestDisableBodyReading(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	prometheus.DefaultRegisterer = reg
+	prometheus.DefaultGatherer = reg
+	r := gin.New()
+	p := NewWithConfig(Config{
+		DisableBodyReading: true,
+	})
+	p.Use(r)
+
+	r.POST("/api/v1/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	// Test that the middleware sets the request counter
+	req := httptest.NewRequest("POST", "/api/v1/test", strings.NewReader("test"))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Check that the metrics endpoint is working
+	req = httptest.NewRequest("GET", "/metrics", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d but got %d", http.StatusOK, w.Code)
+	}
+	if strings.Contains(w.Body.String(), "request_size_bytes_sum{quantile=\"0.5\"} 4") {
+		t.Errorf("expected request_size_bytes_sum to not include body size")
+	}
+}

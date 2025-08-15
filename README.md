@@ -68,6 +68,36 @@ func main() {
 }
 ```
 
+## Disabling Request Body Reading
+
+By default, this middleware reads the entire request body to calculate the request size. This can be expensive for large request bodies. You can disable this behavior by setting the `DisableBodyReading` option to `true`. When disabled, the middleware will use the `ContentLength` header to determine the request size.
+
+```go
+package main
+
+import (
+    "github.com/gin-gonic/gin"
+    "github.com/zsais/go-gin-prometheus"
+)
+
+func main() {
+    r := gin.New()
+
+    // NewWithConfig is the recommended way to initialize the middleware
+    p := ginprometheus.NewWithConfig(ginprometheus.Config{
+        Subsystem: "gin",
+        DisableBodyReading: true,
+    })
+    p.Use(r)
+
+    r.GET("/", func(c *gin.Context) {
+        c.JSON(200, "Hello world!")
+    })
+
+    r.Run(":29090")
+}
+```
+
 ## Preserving a low cardinality for the request counter
 
 The request counter (`requests_total`) has a `url` label which,
