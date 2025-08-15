@@ -137,12 +137,13 @@ jobs:
                ```
             5. If an issue cannot be classified, do not include it in the output array.
 
-            ## Output Format
+            ## Guidelines
 
-            - Your response MUST be a valid JSON array of objects.
-            - Each object in the array MUST contain "issue_number", "labels_to_set", and "explanation".
-            - Do NOT include any text outside of the JSON array. Your response must start with `[` and end with `]`.
-            - Do NOT use markdown formatting like ```json.
+            - Only use labels that already exist in the repository
+            - Assign all applicable labels based on the issue content
+            - Reference all shell variables as "${VAR}" (with quotes and braces)
+            - Output only valid JSON format
+            - Do not include any explanation or additional text, just the JSON
 
       - name: 'Apply Labels to Issues'
         if: |-
