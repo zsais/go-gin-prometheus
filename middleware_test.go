@@ -106,3 +106,33 @@ func TestDisableBodyReading(t *testing.T) {
 		t.Errorf("expected request_size_bytes_sum to include header sizes, not just body size")
 	}
 }
+
+func TestBackwardCompatibility(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	prometheus.DefaultRegisterer = reg
+	prometheus.DefaultGatherer = reg
+	r := gin.New()
+	p := NewPrometheus("gin")
+	p.Use(r)
+
+	r.GET("/api/v1/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	// Test that the middleware sets the request counter
+	req := httptest.NewRequest("GET", "/api/v1/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Check that the metrics endpoint is working
+	req = httptest.NewRequest("GET", "/metrics", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d but got %d", http.StatusOK, w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "requests_total") {
+		t.Errorf("expected requests_total metric but it was not found")
+	}
+}
