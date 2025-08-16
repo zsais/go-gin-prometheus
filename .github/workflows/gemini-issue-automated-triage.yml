@@ -115,21 +115,20 @@ jobs:
                variables: "${ISSUE_TITLE}" and "${ISSUE_BODY}".
             3. Classify the issue by the appropriate labels from the available labels.
             4. Output the appropriate labels for this issue in JSON format with explanation, for example:
-               ```
+               ```json
                {"labels_to_set": ["kind/bug", "priority/p0"], "explanation": "This is a critical bug report affecting main functionality"}
                ```
             5. If the issue cannot be classified using the available labels, output:
-               ```
+               ```json
                {"labels_to_set": [], "explanation": "Unable to classify this issue with available labels"}
                ```
 
-            ## Guidelines
+            ## Output Format
 
-            - Only use labels that already exist in the repository
-            - Assign all applicable labels based on the issue content
-            - Reference all shell variables as "${VAR}" (with quotes and braces)
-            - Output only valid JSON format
-            - Do not include any explanation or additional text, just the JSON
+            - Your response MUST be a valid JSON array of objects.
+            - Each object in the array MUST contain "issue_number", "labels_to_set", and "explanation".
+            - Do NOT include any text outside of the JSON array. Your response must start with `[` and end with `]`.
+            - Do NOT use markdown formatting like ```json.
 
       - name: 'Apply Labels to Issue'
         if: |-
