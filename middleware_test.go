@@ -99,7 +99,10 @@ func TestDisableBodyReading(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status %d but got %d", http.StatusOK, w.Code)
 	}
-	if strings.Contains(w.Body.String(), "request_size_bytes_sum{quantile=\"0.5\"} 4") {
-		t.Errorf("expected request_size_bytes_sum to not include body size")
+	// With DisableBodyReading, the size is computed from headers and ContentLength, not by reading the body.
+	// The body is "test", so ContentLength is 4. The total request size will be larger than 4 since it includes headers.
+	// We check that the metric is not reporting a sum of exactly 4, which would be incorrect.
+	if strings.Contains(w.Body.String(), "request_size_bytes_sum 4\n") {
+		t.Errorf("expected request_size_bytes_sum to include header sizes, not just body size")
 	}
 }
